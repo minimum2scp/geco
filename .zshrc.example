@@ -1,0 +1,11 @@
+peco-gcloud-project-widget (){
+  peco-gcloud project -z | anyframe-action-put
+}
+zle -N peco-gcloud-project-widget
+bindkey '^gp' peco-gcloud-project-widget
+
+peco-gcloud-ssh-widget (){
+  peco-gcloud ssh -z | anyframe-action-put
+}
+zle -N peco-gcloud-ssh-widget
+bindkey '^gs' peco-gcloud-ssh-widget
