@@ -1,11 +1,11 @@
-peco-gcloud-project-widget (){
-  peco-gcloud project -z | anyframe-action-put
+geco-project-widget (){
+  geco project -z | anyframe-action-put
 }
-zle -N peco-gcloud-project-widget
-bindkey '^gp' peco-gcloud-project-widget
+zle -N geco-project-widget
+bindkey '^gp' geco-project-widget
 
-peco-gcloud-ssh-widget (){
-  peco-gcloud ssh -z | anyframe-action-put
+geco-ssh-widget (){
+  geco ssh -z | anyframe-action-put
 }
-zle -N peco-gcloud-ssh-widget
-bindkey '^gs' peco-gcloud-ssh-widget
+zle -N geco-ssh-widget
+bindkey '^gs' geco-ssh-widget
