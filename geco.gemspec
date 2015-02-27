@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["tyamada@minimum2scp.org"]
   spec.summary       = %q{geco = gcloud + peco: select GCP resources using peco, and run gcloud}
   spec.description   = %q{geco = gcloud + peco: select GCP resources using peco, and run gcloud}
-  spec.homepage      = ""
+  spec.homepage      = "https://github.com/minimum2scp/geco"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
