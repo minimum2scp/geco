@@ -1,6 +1,6 @@
 # Geco
 
-TODO: Write a gem description
+geco = gcloud + peco: select GCP resource using peco, and run gcloud
 
 ## Installation
 
