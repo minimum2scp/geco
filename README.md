@@ -1,5 +1,8 @@
 # Geco
 
+[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.txt)
+[![Code Climate](https://codeclimate.com/github/minimum2scp/geco/badges/gpa.svg)](https://codeclimate.com/github/minimum2scp/geco)
+
 geco = gcloud + peco: select GCP resource using peco, and run gcloud
 
 ## Installation
