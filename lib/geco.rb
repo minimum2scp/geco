@@ -20,8 +20,10 @@ module Geco
       and execute or print `gcloud compute ssh`
     LONG_DESC
     def ssh
-      project = options[:project] || Config.instance.get('core/project')
-      vm_instance = VmInstanceList.load(project: project).select(multi:false, project:project)
+      vm_instance = transaction{
+        project = options[:project] || Config.instance.get('core/project')
+        VmInstanceList.load(project: project).select(multi:false, project:project)
+      }
       if options[:zsh_widget]
         puts vm_instance.build_ssh_cmd
       else
@@ -43,7 +45,7 @@ module Geco
       about `gcloud preview ...`
     LONG_DESC
     def project
-      project = ProjectList.load.select(multi:false)
+      project = transaction{ ProjectList.load.select(multi:false) }
       if options[:zsh_widget]
         puts project.build_config_set_project_cmd
       else
@@ -57,13 +59,23 @@ module Geco
 
     desc "gencache", "cache all projects and instances"
     def gencache
-      puts "loading projects..."
-      project_list = ProjectList.load(force: true)
-      puts "found #{project_list.projects.size} projects."
-      project_list.projects.each do |project|
-        puts "loading VM instances on project: #{project.title} (#{project.id})"
-        vm_instance_list = VmInstanceList.load(force:true, project: project.id)
-        puts "found #{vm_instance_list.instances.size} vm instances"
+      transaction do
+        puts "loading projects..."
+        project_list = ProjectList.load(force: true)
+        puts "found #{project_list.projects.size} projects."
+        project_list.projects.each do |project|
+          puts "loading VM instances on project: #{project.title} (#{project.id})"
+          vm_instance_list = VmInstanceList.load(force:true, project: project.id)
+          puts "found #{vm_instance_list.instances.size} vm instances"
+        end
+      end
+    end
+
+    no_commands do
+      def transaction
+        Cache.instance.transaction do
+          yield
+        end
       end
     end
   end
@@ -173,10 +185,7 @@ module Geco
           ## TODO: refactoring
           @@instances = project_list.projects.map{|project|
             Cache.instance.get_or_set("instances/#{project.id}") do
-              pid = fork {
-                VmInstanceList.load(force:force, project:project.id)
-              }
-              Process.waitpid pid
+              VmInstanceList.load(force:force, project:project.id)
               Cache.instance.get("instances/#{project.id}")
             end
           }.flatten
@@ -207,16 +216,35 @@ module Geco
       @db = YAML::Store.new(path)
     end
 
+    def transaction
+      @in_transaction = true
+      ret = nil
+      @db.transaction do
+        ret = yield
+      end
+    ensure
+      @in_transaction = false
+      ret
+    end
+
     def get_or_set(key, expire:24*60*60, &block)
       get(key) || set(key, block.call, expire:expire)
     end
 
     def set(key, value, expire:24*60*60)
-      @db.transaction{ @db[key] = {value: value, expire: Time.now+expire}; value }
+      if @in_transaction
+        @db[key] = {value: value, expire: Time.now+expire}; value
+      else
+        self.transaction{ self.set(key, value, expire:expire) }
+      end
     end
 
     def get(key)
-      @db.transaction{ @db[key] && @db[key][:expire] > Time.now ? @db[key][:value] : nil }
+      if @in_transaction
+        @db[key] && @db[key][:expire] > Time.now ? @db[key][:value] : nil
+      else
+        self.transaction{ self.get(key) }
+      end
     end
   end
 end
