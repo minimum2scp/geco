@@ -37,12 +37,12 @@ module Geco
 
     desc "project", "select project and run gcloud config set project"
     long_desc <<-LONG_DESC
-      execute `gcloud preview projects list`,
+      execute `gcloud alpha projects list`,
       and filter the results by `peco`,
       and execute or print `gcloud config set project`
 
-      see https://cloud.google.com/sdk/gcloud/reference/preview/
-      about `gcloud preview ...`
+      see https://cloud.google.com/sdk/gcloud/reference/alpha/
+      about `gcloud alpha ...`
     LONG_DESC
     def project
       project = transaction{ ProjectList.load.select(multi:false) }
@@ -80,14 +80,14 @@ module Geco
     end
   end
 
-  ## gcloud preview projects list
+  ## gcloud alpha projects list
   class Project < Struct.new(:id, :title, :number)
     def build_config_set_project_cmd
       %Q[gcloud config set project "#{id}"]
     end
   end
 
-  ## gcloud preview projects list
+  ## gcloud alpha projects list
   class ProjectList < Struct.new(:projects)
     def select(multi:false)
       selected = Open3.popen3('peco'){|stdin, stdout, stderr, wait_thr|
@@ -114,16 +114,16 @@ module Geco
     end
 
     class << self
-      def preview_installed?
-        ! (%x[gcloud components list 2>/dev/null | grep -F '| preview '] =~ /Not Installed/)
+      def alpha_installed?
+        ! (%x[gcloud components list 2>/dev/null | grep -F '| alpha '] =~ /Not Installed/)
       end
       def load(force:false)
-        if !preview_installed?
-          abort 'gcloud component "preview" is not installed, please install by `gcloud components update preview`'
+        if !alpha_installed?
+          abort 'gcloud component "alpha" is not installed, please install by `gcloud components update alpha`'
         end
         if force || ! defined?(@@projects)
           @@projects = Cache.instance.get_or_set('projects', expire:24*60*60) do
-            JSON.parse(%x[gcloud preview projects list --format json]).map{|prj|
+            JSON.parse(%x[gcloud alpha projects list --format json]).map{|prj|
               Project.new(prj['projectId'], prj['title'], prj['projectNumber'])
             }
           end
