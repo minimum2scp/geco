@@ -64,7 +64,7 @@ module Geco
         project_list = ProjectList.load(force: true)
         puts "found #{project_list.projects.size} projects."
         project_list.projects.each do |project|
-          puts "loading VM instances on project: #{project.title} (#{project.id})"
+          puts "loading VM instances on project: #{project.name} (#{project.id})"
           vm_instance_list = VmInstanceList.load(force:true, project: project.id)
           puts "found #{vm_instance_list.instances.size} vm instances"
         end
@@ -81,7 +81,7 @@ module Geco
   end
 
   ## gcloud alpha projects list
-  class Project < Struct.new(:id, :title, :number)
+  class Project < Struct.new(:id, :name, :number)
     def build_config_set_project_cmd
       %Q[gcloud config set project "#{id}"]
     end
@@ -124,7 +124,7 @@ module Geco
         if force || ! defined?(@@projects)
           @@projects = Cache.instance.get_or_set('projects', expire:24*60*60) do
             JSON.parse(%x[gcloud alpha projects list --format json]).map{|prj|
-              Project.new(prj['projectId'], prj['title'], prj['projectNumber'])
+              Project.new(prj['projectId'], prj['name'], prj['projectNumber'])
             }
           end
         end
