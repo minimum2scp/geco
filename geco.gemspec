@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency "thor", "~> 0.19.1"
   spec.add_runtime_dependency "text-table", "~> 1.2.4"
+  spec.add_runtime_dependency "google-api-client", "~> 0.9.pre3"
 
   spec.add_development_dependency "bundler", "~> 1.7"
   spec.add_development_dependency "rake", "~> 10.0"

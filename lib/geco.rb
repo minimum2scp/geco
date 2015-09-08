@@ -7,15 +7,21 @@ require 'etc'
 require 'singleton'
 require 'thor'
 require 'text-table'
+require 'googleauth'
+require 'google/apis/cloudresourcemanager_v1beta1'
+require 'google/apis/compute_v1'
 
 module Geco
+  Cloudresourcemanager = ::Google::Apis::CloudresourcemanagerV1beta1
+  Compute = ::Google::Apis::ComputeV1
+
   class Cli < Thor
     class_option :zsh_widget, :type => :boolean, :default => false, :aliases => ['-z']
 
     option :project, :type => :string, :aliases => ['-p']
     desc "ssh", "select vm instance by peco, and run gcloud compute ssh"
     long_desc <<-LONG_DESC
-      execute `gcloud compute instances list`,
+      show VM instances like `gcloud compute instances list`
       and filter the results by `peco`,
       and execute or print `gcloud compute ssh`
     LONG_DESC
@@ -37,7 +43,7 @@ module Geco
 
     desc "project", "select project and run gcloud config set project"
     long_desc <<-LONG_DESC
-      execute `gcloud alpha projects list`,
+      show projects like `gcloud alpha projects list`,
       and filter the results by `peco`,
       and execute or print `gcloud config set project`
 
@@ -80,7 +86,6 @@ module Geco
     end
   end
 
-  ## gcloud alpha projects list
   class Project < Struct.new(:id, :name, :number)
     def build_config_set_project_cmd
       %Q[gcloud config set project "#{id}"]
@@ -114,17 +119,13 @@ module Geco
     end
 
     class << self
-      def alpha_installed?
-        ! (%x[gcloud components list 2>/dev/null | grep -F '| alpha '] =~ /Not Installed/)
-      end
       def load(force:false)
-        if !alpha_installed?
-          abort 'gcloud component "alpha" is not installed, please install by `gcloud components update alpha`'
-        end
         if force || ! defined?(@@projects)
           @@projects = Cache.instance.get_or_set('projects', expire:24*60*60) do
-            JSON.parse(%x[gcloud alpha projects list --format json]).map{|prj|
-              Project.new(prj['projectId'], prj['name'], prj['projectNumber'])
+            service = Cloudresourcemanager::CloudresourcemanagerService.new
+            service.authorization = Google::Auth.get_application_default([Cloudresourcemanager::AUTH_CLOUD_PLATFORM])
+            service.list_projects.projects.map{|prj|
+              Project.new(prj.project_id, prj.name, prj.project_number)
             }
           end
         end
@@ -174,8 +175,10 @@ module Geco
         if project
           if force || ! defined?(@@instances)
             @@instances = Cache.instance.get_or_set("instances/#{project}") do
-              JSON.parse(%x[gcloud compute instances list --project=#{project} --sort-by name --format json]).map{|i|
-                VmInstance.new(project, i['name'], i['zone'], i['machineType'], i['networkInterfaces'].first['networkIP'], i['networkInterfaces'].first['accessConfigs'].first['natIP'], i['status'])
+              service = Compute::ComputeService.new
+              service.authorization = Google::Auth.get_application_default([Compute::AUTH_COMPUTE_READONLY])
+              instances = service.list_aggregated_instances(project).items.values.map(&:instances).flatten.compact.map{|i|
+                VmInstance.new(project, i.name, i.zone.split('/').last, i.machine_type.split('/').last, i.network_interfaces.first.network_ip, i.network_interfaces.first.access_configs.first.nat_ip, i.status)
               }
             end
           end
