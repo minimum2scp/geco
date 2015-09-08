@@ -10,6 +10,7 @@ require 'text-table'
 require 'googleauth'
 require 'google/apis/cloudresourcemanager_v1beta1'
 require 'google/apis/compute_v1'
+require 'thread'
 
 module Geco
   Cloudresourcemanager = ::Google::Apis::CloudresourcemanagerV1beta1
@@ -69,11 +70,17 @@ module Geco
         puts "loading projects..."
         project_list = ProjectList.load(force: true)
         puts "found #{project_list.projects.size} projects."
+        mutex = Mutex.new
+        threads = []
         project_list.projects.each do |project|
-          puts "loading VM instances on project: #{project.name} (#{project.id})"
-          vm_instance_list = VmInstanceList.load(force:true, project: project.id)
-          puts "found #{vm_instance_list.instances.size} vm instances"
+          t = Thread.new do
+            mutex.synchronize{ puts "loading project: #{project.name} (#{project.id})" }
+            vm_instance_list = VmInstanceList.load(force:true, project: project.id)
+            mutex.synchronize{ puts "loaded project: #{project.name} (#{project.id}), found #{vm_instance_list.instances.size} vm instances" }
+          end
+          threads << t
         end
+        threads.each{|t| t.join }
       end
     end
 
