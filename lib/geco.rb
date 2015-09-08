@@ -70,17 +70,28 @@ module Geco
         puts "loading projects..."
         project_list = ProjectList.load(force: true)
         puts "found #{project_list.projects.size} projects."
+
         mutex = Mutex.new
+        num_threads = 10
+        queue = SizedQueue.new(num_threads)
         threads = []
-        project_list.projects.each do |project|
-          t = Thread.new do
-            mutex.synchronize{ puts "loading project: #{project.name} (#{project.id})" }
-            vm_instance_list = VmInstanceList.load(force:true, project: project.id)
-            mutex.synchronize{ puts "loaded project: #{project.name} (#{project.id}), found #{vm_instance_list.instances.size} vm instances" }
+        num_threads.times do |n|
+          threads << Thread.new do
+            while project = queue.pop
+              mutex.synchronize{ puts "loading project: #{project.name} (#{project.id})" }
+              vm_instance_list = VmInstanceList.load(force:true, project: project.id)
+              mutex.synchronize{ puts "loaded project: #{project.name} (#{project.id}), found #{vm_instance_list.instances.size} vm instances" }
+            end
           end
-          threads << t
+        end
+        project_list.projects.each do |project|
+          queue.push(project)
+        end
+        num_threads.times do
+          queue.push nil
         end
         threads.each{|t| t.join }
+
       end
     end
 
