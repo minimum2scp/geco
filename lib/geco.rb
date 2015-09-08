@@ -177,9 +177,14 @@ module Geco
             @@instances = Cache.instance.get_or_set("instances/#{project}") do
               service = Compute::ComputeService.new
               service.authorization = Google::Auth.get_application_default([Compute::AUTH_COMPUTE_READONLY])
-              instances = service.list_aggregated_instances(project).items.values.map(&:instances).flatten.compact.map{|i|
-                VmInstance.new(project, i.name, i.zone.split('/').last, i.machine_type.split('/').last, i.network_interfaces.first.network_ip, i.network_interfaces.first.access_configs.first.nat_ip, i.status)
-              }
+              begin
+                service.list_aggregated_instances(project).items.values.map(&:instances).flatten.compact.map{|i|
+                  VmInstance.new(project, i.name, i.zone.split('/').last, i.machine_type.split('/').last, i.network_interfaces.first.network_ip, i.network_interfaces.first.access_configs.first.nat_ip, i.status)
+                }
+              rescue Google::Apis::ClientError => e
+                warn "ignored exception: #{e.message} (#{e.class})"
+                []
+              end
             end
           end
           VmInstanceList.new(@@instances)
