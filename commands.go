@@ -256,7 +256,6 @@ func doCurrentProject(c *cli.Context) {
 	config := LoadConfig()
 	project := config.Core.Project
 	fmt.Println("project: " + project)
-	fmt.Printf("%#v", project)
 }
 
 func LoadConfig() configRoot {
