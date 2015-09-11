@@ -245,11 +245,16 @@ func doSsh(c *cli.Context) {
 		zone = instanceLine[3]
 	}
 
-	sshCom := exec.Command("gcloud", "compute", "--project="+project, "ssh", "--zone="+zone, instance)
+	cmd := []string{"gcloud", "compute", "ssh", instance, "--project=" + project, "--zone=" + zone}
+	log.Println(strings.Join(cmd, " "))
+	sshCom := exec.Command(cmd[0], cmd[1:]...)
 	sshCom.Stdout = os.Stdout
 	sshCom.Stderr = os.Stderr
 	sshCom.Stdin = os.Stdin
-	sshCom.Run()
+	err = sshCom.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func doCurrentProject(c *cli.Context) {
