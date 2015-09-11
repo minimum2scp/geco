@@ -41,6 +41,11 @@ var commandProject = cli.Command{
 	Description: `
 `,
 	Action: doProject,
+	Flags: []cli.Flag{
+		cli.BoolFlag{
+			Name: "zsh-widget, z",
+		},
+	},
 }
 
 var commandSsh = cli.Command{
@@ -49,6 +54,11 @@ var commandSsh = cli.Command{
 	Description: `
 `,
 	Action: doSsh,
+	Flags: []cli.Flag{
+		cli.BoolFlag{
+			Name: "zsh-widget, z",
+		},
+	},
 }
 
 var commandCurrentProject = cli.Command{
@@ -205,17 +215,16 @@ func doProject(c *cli.Context) {
 	buf := renderProjectTable(cache.Projects)
 	out := PecoCommand(buf)
 	projectLine := strings.Fields(out)
+	project_id := projectLine[1]
 
-	project := (func(projectName string) *cloudresourcemanager.Project {
-		for _, p := range cache.Projects {
-			if projectName == p.ProjectId {
-				return p
-			}
-		}
-		return nil
-	})(projectLine[1])
+	cmd := []string{"gcloud", "config", "set", "project", project_id}
 
-	exec.Command("gcloud", "config", "set", "project", project.ProjectId).Output()
+	if c.Bool("zsh-widget") {
+		fmt.Println(strings.Join(cmd, " "))
+	} else {
+		log.Println(strings.Join(cmd, " "))
+		exec.Command(cmd[0], cmd[1:]...).Output()
+	}
 }
 
 func doSsh(c *cli.Context) {
@@ -246,14 +255,19 @@ func doSsh(c *cli.Context) {
 	}
 
 	cmd := []string{"gcloud", "compute", "ssh", instance, "--project=" + project, "--zone=" + zone}
-	log.Println(strings.Join(cmd, " "))
-	sshCom := exec.Command(cmd[0], cmd[1:]...)
-	sshCom.Stdout = os.Stdout
-	sshCom.Stderr = os.Stderr
-	sshCom.Stdin = os.Stdin
-	err = sshCom.Run()
-	if err != nil {
-		log.Fatal(err)
+
+	if c.Bool("zsh-widget") {
+		fmt.Println(strings.Join(cmd, " "))
+	} else {
+		log.Println(strings.Join(cmd, " "))
+		sshCom := exec.Command(cmd[0], cmd[1:]...)
+		sshCom.Stdout = os.Stdout
+		sshCom.Stderr = os.Stderr
+		sshCom.Stdin = os.Stdin
+		err = sshCom.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
