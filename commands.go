@@ -156,6 +156,7 @@ func doCache(c *cli.Context) {
 	}
 
 	// gcloud projects list
+	log.Println("loading projects...")
 	service, err := cloudresourcemanager.New(client)
 	if err != nil {
 		panic(err)
@@ -166,9 +167,11 @@ func doCache(c *cli.Context) {
 		panic(err)
 	}
 	cache.Projects = res.Projects
+	log.Printf("loaded projects, %d projects found.\n", len(cache.Projects))
 
 	// gcloud instances list
 	for _, project := range res.Projects {
+		log.Printf("loading instances in %s (%s)...\n", project.Name, project.ProjectId)
 		service, err := compute.New(client)
 		if err != nil {
 			log.Print(err)
@@ -181,12 +184,16 @@ func doCache(c *cli.Context) {
 			continue
 		}
 
+		num_instances := 0
 		for _, instances_scoped_list := range res.Items {
+			num_instances = num_instances + len(instances_scoped_list.Instances)
 			cache.Instances = append(cache.Instances, instances_scoped_list.Instances...)
 		}
+		log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, num_instances)
 	}
 
 	SaveCache(cache)
+	log.Println("saved cache.")
 }
 
 func doProject(c *cli.Context) {
