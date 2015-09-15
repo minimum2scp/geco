@@ -157,6 +157,8 @@ func doCache(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
+	cache.Projects = []*cloudresourcemanager.Project{}
+	cache.Instances = []*compute.Instance{}
 
 	ctx := oauth2.NoContext
 	scopes := []string{compute.ComputeReadonlyScope}
