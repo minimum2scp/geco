@@ -256,7 +256,7 @@ func doSsh(c *cli.Context) {
 		zone = instanceLine[3]
 	}
 
-	cmd := []string{"gcloud", "compute", "ssh", instance, "--project=" + project, "--zone=" + zone}
+	cmd := []string{"gcloud", "compute", "ssh", "--project=" + project, "--zone=" + zone, instance}
 
 	if c.Bool("zsh-widget") {
 		fmt.Println(strings.Join(cmd, " "))
