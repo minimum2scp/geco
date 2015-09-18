@@ -11,9 +11,10 @@ func main() {
 	app.Name = "geco"
 	app.Version = Version
 	app.Usage = ""
-	app.Author = "Shinichirow KAMITO"
-	app.Email = "updoor@gmail.com"
-	app.Authors = []cli.Author{cli.Author{Name: "YAMADA Tsuyoshi", Email: "tyamada@minimum2scp.org"}}
+	app.Authors = []cli.Author{
+		cli.Author{Name: "YAMADA Tsuyoshi", Email: "tyamada@minimum2scp.org"},
+		cli.Author{Name: "Shinichirow KAMITO", Email: "updoor@gmail.com"},
+	}
 	app.Commands = Commands
 
 	app.Run(os.Args)
