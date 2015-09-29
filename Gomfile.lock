@@ -1,0 +1,8 @@
+gom 'github.com/codegangsta/cli', :commit => 'a65b733b303f0055f8d324d805f393cd3e7a7904'
+gom 'github.com/olekukonko/tablewriter', :commit => 'b9346ac189c55dd419f85c7ad2cd56f810bf19d6'
+gom 'golang.org/x/net/context'
+gom 'golang.org/x/oauth2', :commit => 'ad0128250e8fba646a92ca9129716e523d63ef9f'
+gom 'golang.org/x/oauth2/google'
+gom 'github.com/google/google-api-go-client/compute/v1'
+gom 'github.com/google/google-api-go-client/cloudresourcemanager/v1beta1'
+gom 'github.com/mitchellh/go-homedir'
