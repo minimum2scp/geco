@@ -13,7 +13,7 @@ geco = gcloud + peco: select GCP resource using peco, and run gcloud
 To install, use `go get`:
 
 ```bash
-$ go get -d github.com/minimum2scp/geco
+$ go get github.com/minimum2scp/geco
 ```
 
 ## Contribution
