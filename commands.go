@@ -12,12 +12,12 @@ import (
 	"strings"
 
 	"github.com/codegangsta/cli"
-	cloudresourcemanager "github.com/google/google-api-go-client/cloudresourcemanager/v1beta1"
-	compute "github.com/google/google-api-go-client/compute/v1"
 	"github.com/mitchellh/go-homedir"
 	"github.com/olekukonko/tablewriter"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1beta1"
+	compute "google.golang.org/api/compute/v1"
 )
 
 var Commands = []cli.Command{
