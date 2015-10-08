@@ -2,7 +2,6 @@
 
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.txt)
 [![Build Status](https://travis-ci.org/minimum2scp/geco.svg)](https://travis-ci.org/minimum2scp/geco)
-[![Gem Version](https://badge.fury.io/rb/geco.svg)](http://badge.fury.io/rb/geco)
 [![Code Climate](https://codeclimate.com/github/minimum2scp/geco/badges/gpa.svg)](https://codeclimate.com/github/minimum2scp/geco)
 
 ## Description
