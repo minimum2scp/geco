@@ -25,5 +25,5 @@ deploy:
   on:
     repo: minimum2scp/geco
     tags: true
-    branch: features/travis-ci
+    branch: master
     condition: "${TRAVIS_GO_VERSION} = 1.5"
