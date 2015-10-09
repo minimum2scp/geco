@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/codegangsta/cli"
@@ -79,6 +80,32 @@ type configCore struct {
 }
 type configRoot struct {
 	Core configCore `json:"core"`
+}
+
+// sort Projects by projectId
+type projectsById []*cloudresourcemanager.Project
+
+func (by projectsById) Len() int {
+	return len(by)
+}
+func (by projectsById) Less(i, j int) bool {
+	return by[i].ProjectId < by[j].ProjectId
+}
+func (by projectsById) Swap(i, j int) {
+	by[i], by[j] = by[j], by[i]
+}
+
+// sort Instances by selfLink
+type instancesBySelfLink []*compute.Instance
+
+func (by instancesBySelfLink) Len() int {
+	return len(by)
+}
+func (by instancesBySelfLink) Less(i, j int) bool {
+	return by[i].SelfLink < by[j].SelfLink
+}
+func (by instancesBySelfLink) Swap(i, j int) {
+	by[i], by[j] = by[j], by[i]
 }
 
 // cache
@@ -249,6 +276,10 @@ func doCache(c *cli.Context) {
 			cache.Instances = append(cache.Instances, instances...)
 		}
 	}
+
+	// sort projects, instances
+	sort.Sort(projectsById(cache.Projects))
+	sort.Sort(instancesBySelfLink(cache.Instances))
 
 	SaveCache(cache)
 	log.Println("saved cache.")
