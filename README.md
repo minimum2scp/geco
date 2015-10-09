@@ -1,19 +1,35 @@
 # Geco
 
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE.txt)
-[![Gem Version](https://badge.fury.io/rb/geco.svg)](http://badge.fury.io/rb/geco)
+[![Build Status](https://travis-ci.org/minimum2scp/geco.svg)](https://travis-ci.org/minimum2scp/geco)
 [![Code Climate](https://codeclimate.com/github/minimum2scp/geco/badges/gpa.svg)](https://codeclimate.com/github/minimum2scp/geco)
 
 ## Description
  
 geco = gcloud + peco: select GCP resource using peco, and run gcloud
 
+## Dependencies
+
+ * [gcloud (Google Cloud SDK)](https://cloud.google.com/sdk/)
+ * [peco](https://github.com/peco/peco)
+
 ## Installation
 
-To install, use `go get`:
+### Binary install
+
+You can download binary from [Github releases](https://github.com/minimum2scp/geco/releases).
+
+1. Download the zip file and unpack it.
+2. Put binary file into somewhere you want.
+
+### Clone the project (for developers)
 
 ```bash
-$ go get github.com/minimum2scp/geco
+$ go get github.com/mattn/gom
+$ git clone https://github.com/minimum2scp/geco/
+$ cd geco
+$ gom install
+$ gom build
 ```
 
 ## Contribution
