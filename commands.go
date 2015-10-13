@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/codegangsta/cli"
@@ -69,6 +70,8 @@ var commandCurrentProject = cli.Command{
 	Action: doCurrentProject,
 }
 
+var maxParallelApiCalls = 10
+
 // JSON struct
 // config
 type configCore struct {
@@ -77,6 +80,32 @@ type configCore struct {
 }
 type configRoot struct {
 	Core configCore `json:"core"`
+}
+
+// sort Projects by projectId
+type projectsById []*cloudresourcemanager.Project
+
+func (by projectsById) Len() int {
+	return len(by)
+}
+func (by projectsById) Less(i, j int) bool {
+	return by[i].ProjectId < by[j].ProjectId
+}
+func (by projectsById) Swap(i, j int) {
+	by[i], by[j] = by[j], by[i]
+}
+
+// sort Instances by selfLink
+type instancesBySelfLink []*compute.Instance
+
+func (by instancesBySelfLink) Len() int {
+	return len(by)
+}
+func (by instancesBySelfLink) Less(i, j int) bool {
+	return by[i].SelfLink < by[j].SelfLink
+}
+func (by instancesBySelfLink) Swap(i, j int) {
+	by[i], by[j] = by[j], by[i]
 }
 
 // cache
@@ -167,42 +196,90 @@ func doCache(c *cli.Context) {
 		panic(err)
 	}
 
-	// gcloud projects list
+	// gcloud beta projects list
 	log.Println("loading projects...")
 	service, err := cloudresourcemanager.New(client)
 	if err != nil {
 		panic(err)
 	}
 
-	res, err := service.Projects.List().Do()
-	if err != nil {
-		panic(err)
+	projects_list_call := service.Projects.List()
+	for {
+		res, err := projects_list_call.Do()
+
+		if err != nil {
+			panic(err)
+		}
+
+		cache.Projects = append(cache.Projects, res.Projects...)
+
+		if res.NextPageToken != "" {
+			log.Printf("loading more projects with nextPageToken ...")
+			projects_list_call.PageToken(res.NextPageToken)
+		} else {
+			break
+		}
 	}
-	cache.Projects = res.Projects
 	log.Printf("loaded projects, %d projects found.\n", len(cache.Projects))
 
-	// gcloud instances list
-	for _, project := range res.Projects {
-		log.Printf("loading instances in %s (%s)...\n", project.Name, project.ProjectId)
-		service, err := compute.New(client)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
+	semaphore := make(chan int, maxParallelApiCalls)
+	notify := make(chan []*compute.Instance)
 
-		res, err := service.Instances.AggregatedList(project.ProjectId).Do()
-		if err != nil {
-			log.Print(err)
-			continue
-		}
+	// gcloud compute instances list (in parallel)
+	for _, project := range cache.Projects {
+		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.Instance) {
+			semaphore <- 0
+			var instances []*compute.Instance
 
-		num_instances := 0
-		for _, instances_scoped_list := range res.Items {
-			num_instances = num_instances + len(instances_scoped_list.Instances)
-			cache.Instances = append(cache.Instances, instances_scoped_list.Instances...)
-		}
-		log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, num_instances)
+			log.Printf("loading instances in %s (%s)...\n", project.Name, project.ProjectId)
+			service, err := compute.New(client)
+			if err != nil {
+				log.Printf("error on loading instances in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+				notify <- nil
+				<-semaphore
+				return
+			}
+
+			aggregated_list_call := service.Instances.AggregatedList(project.ProjectId)
+			// aggregated_list_call.MaxResults(10)
+			for {
+				res, err := aggregated_list_call.Do()
+
+				if err != nil {
+					log.Printf("error on loading instances in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+					notify <- nil
+					<-semaphore
+					return
+				}
+
+				for _, instances_scoped_list := range res.Items {
+					instances = append(instances, instances_scoped_list.Instances...)
+				}
+
+				if res.NextPageToken != "" {
+					log.Printf("loading more instances with nextPageToken in %s (%s) ...", project.Name, project.ProjectId)
+					aggregated_list_call.PageToken(res.NextPageToken)
+				} else {
+					break
+				}
+			}
+
+			<-semaphore
+			notify <- instances
+
+			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
+		}(project, notify)
 	}
+	for _, _ = range cache.Projects {
+		instances, _ := <-notify
+		if instances != nil {
+			cache.Instances = append(cache.Instances, instances...)
+		}
+	}
+
+	// sort projects, instances
+	sort.Sort(projectsById(cache.Projects))
+	sort.Sort(instancesBySelfLink(cache.Instances))
 
 	SaveCache(cache)
 	log.Println("saved cache.")
