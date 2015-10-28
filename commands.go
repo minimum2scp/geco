@@ -294,6 +294,10 @@ func doProject(c *cli.Context) {
 	buf := renderProjectTable(cache.Projects)
 	out := PecoCommand(buf)
 	projectLine := strings.Fields(out)
+	if len(projectLine) == 0 {
+		os.Exit(1)
+	}
+
 	project_id := projectLine[1]
 
 	cmd := []string{"gcloud", "config", "set", "project", project_id}
