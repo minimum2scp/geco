@@ -1,7 +1,7 @@
 language: go
 sudo: false
 go:
-  - 1.5
+  - 1.5.3
   - tip
 install:
   - go get github.com/mattn/gom
@@ -29,4 +29,4 @@ deploy:
     repo: minimum2scp/geco
     tags: true
     branch: master
-    condition: "${TRAVIS_GO_VERSION} = 1.5"
+    condition: "${TRAVIS_GO_VERSION} = 1.5.3"
