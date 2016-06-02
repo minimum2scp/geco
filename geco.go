@@ -9,13 +9,13 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "geco"
-	app.Version = Version
+	app.Version = version
 	app.Usage = ""
 	app.Authors = []cli.Author{
 		cli.Author{Name: "YAMADA Tsuyoshi", Email: "tyamada@minimum2scp.org"},
 		cli.Author{Name: "Shinichirow KAMITO", Email: "updoor@gmail.com"},
 	}
-	app.Commands = Commands
+	app.Commands = commands
 
 	app.Run(os.Args)
 }

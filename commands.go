@@ -21,10 +21,10 @@ import (
 	compute "google.golang.org/api/compute/v1"
 )
 
-var Commands = []cli.Command{
+var commands = []cli.Command{
 	commandCache,
 	commandProject,
-	commandSsh,
+	commandSSH,
 	commandCurrentProject,
 }
 
@@ -49,12 +49,12 @@ var commandProject = cli.Command{
 	},
 }
 
-var commandSsh = cli.Command{
+var commandSSH = cli.Command{
 	Name:  "ssh",
 	Usage: "",
 	Description: `
 `,
-	Action: doSsh,
+	Action: doSSH,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
 			Name: "zsh-widget, z",
@@ -70,7 +70,7 @@ var commandCurrentProject = cli.Command{
 	Action: doCurrentProject,
 }
 
-var maxParallelApiCalls = 10
+var maxParallelAPICalls = 10
 
 // JSON struct
 // config
@@ -83,15 +83,15 @@ type configRoot struct {
 }
 
 // sort Projects by projectId
-type projectsById []*cloudresourcemanager.Project
+type projectsByID []*cloudresourcemanager.Project
 
-func (by projectsById) Len() int {
+func (by projectsByID) Len() int {
 	return len(by)
 }
-func (by projectsById) Less(i, j int) bool {
+func (by projectsByID) Less(i, j int) bool {
 	return by[i].ProjectId < by[j].ProjectId
 }
-func (by projectsById) Swap(i, j int) {
+func (by projectsByID) Swap(i, j int) {
 	by[i], by[j] = by[j], by[i]
 }
 
@@ -109,60 +109,60 @@ func (by instancesBySelfLink) Swap(i, j int) {
 }
 
 // cache
-type t_cache struct {
+type cache struct {
 	CacheDir  string
 	Instances []*compute.Instance
 	Projects  []*cloudresourcemanager.Project
 }
 
-func LoadCache() (*t_cache, error) {
+func loadCache() (*cache, error) {
 	cachedir, err := homedir.Expand("~/.cache/geco/")
 	if err != nil {
 		return nil, err
 	}
-	cache := t_cache{CacheDir: cachedir}
-	_, err = os.Stat(cache.CacheDir)
+	c := cache{CacheDir: cachedir}
+	_, err = os.Stat(c.CacheDir)
 	if os.IsNotExist(err) {
-		os.MkdirAll(cache.CacheDir, 0700)
+		os.MkdirAll(c.CacheDir, 0700)
 	}
-	fileinfos, _ := ioutil.ReadDir(cache.CacheDir)
+	fileinfos, _ := ioutil.ReadDir(c.CacheDir)
 	for _, fileinfo := range fileinfos {
 		if fileinfo.IsDir() {
 			continue
 		}
 		if fileinfo.Name() == "projects.json" {
-			projects_json, err := ioutil.ReadFile(filepath.Join(cache.CacheDir, fileinfo.Name()))
+			projectsJSON, err := ioutil.ReadFile(filepath.Join(c.CacheDir, fileinfo.Name()))
 			if err != nil {
 				return nil, err
 			}
-			err = json.Unmarshal(projects_json, &cache.Projects)
+			err = json.Unmarshal(projectsJSON, &c.Projects)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if fileinfo.Name() == "instances.json" {
-			instances_json, err := ioutil.ReadFile(filepath.Join(cache.CacheDir, fileinfo.Name()))
+			instancesJSON, err := ioutil.ReadFile(filepath.Join(c.CacheDir, fileinfo.Name()))
 			if err != nil {
 				return nil, err
 			}
-			err = json.Unmarshal(instances_json, &cache.Instances)
+			err = json.Unmarshal(instancesJSON, &c.Instances)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	return &cache, nil
+	return &c, nil
 }
 
-func SaveCache(cache *t_cache) error {
-	projects_json, _ := json.Marshal(cache.Projects)
-	err := ioutil.WriteFile(filepath.Join(cache.CacheDir, "projects.json"), projects_json, 0600)
+func saveCache(c *cache) error {
+	projectsJSON, _ := json.Marshal(c.Projects)
+	err := ioutil.WriteFile(filepath.Join(c.CacheDir, "projects.json"), projectsJSON, 0600)
 	if err != nil {
 		return err
 	}
-	instances_json, _ := json.Marshal(cache.Instances)
-	err = ioutil.WriteFile(filepath.Join(cache.CacheDir, "instances.json"), instances_json, 0600)
+	instancesJSON, _ := json.Marshal(c.Instances)
+	err = ioutil.WriteFile(filepath.Join(c.CacheDir, "instances.json"), instancesJSON, 0600)
 	if err != nil {
 		return err
 	}
@@ -181,13 +181,13 @@ func assert(err error) {
 	}
 }
 
-func doCache(c *cli.Context) {
-	cache, err := LoadCache()
+func doCache(cliCtx *cli.Context) {
+	c, err := loadCache()
 	if err != nil {
 		panic(err)
 	}
-	cache.Projects = []*cloudresourcemanager.Project{}
-	cache.Instances = []*compute.Instance{}
+	c.Projects = []*cloudresourcemanager.Project{}
+	c.Instances = []*compute.Instance{}
 
 	ctx := oauth2.NoContext
 	scopes := []string{compute.ComputeReadonlyScope}
@@ -203,30 +203,30 @@ func doCache(c *cli.Context) {
 		panic(err)
 	}
 
-	projects_list_call := service.Projects.List()
+	projectsListCall := service.Projects.List()
 	for {
-		res, err := projects_list_call.Do()
+		res, err := projectsListCall.Do()
 
 		if err != nil {
 			panic(err)
 		}
 
-		cache.Projects = append(cache.Projects, res.Projects...)
+		c.Projects = append(c.Projects, res.Projects...)
 
 		if res.NextPageToken != "" {
 			log.Printf("loading more projects with nextPageToken ...")
-			projects_list_call.PageToken(res.NextPageToken)
+			projectsListCall.PageToken(res.NextPageToken)
 		} else {
 			break
 		}
 	}
-	log.Printf("loaded projects, %d projects found.\n", len(cache.Projects))
+	log.Printf("loaded projects, %d projects found.\n", len(c.Projects))
 
-	semaphore := make(chan int, maxParallelApiCalls)
+	semaphore := make(chan int, maxParallelAPICalls)
 	notify := make(chan []*compute.Instance)
 
 	// gcloud compute instances list (in parallel)
-	for _, project := range cache.Projects {
+	for _, project := range c.Projects {
 		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.Instance) {
 			semaphore <- 0
 			var instances []*compute.Instance
@@ -240,10 +240,10 @@ func doCache(c *cli.Context) {
 				return
 			}
 
-			aggregated_list_call := service.Instances.AggregatedList(project.ProjectId)
+			aggregatedListCall := service.Instances.AggregatedList(project.ProjectId)
 			// aggregated_list_call.MaxResults(10)
 			for {
-				res, err := aggregated_list_call.Do()
+				res, err := aggregatedListCall.Do()
 
 				if err != nil {
 					log.Printf("error on loading instances in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
@@ -252,13 +252,13 @@ func doCache(c *cli.Context) {
 					return
 				}
 
-				for _, instances_scoped_list := range res.Items {
-					instances = append(instances, instances_scoped_list.Instances...)
+				for _, instancesScopedList := range res.Items {
+					instances = append(instances, instancesScopedList.Instances...)
 				}
 
 				if res.NextPageToken != "" {
 					log.Printf("loading more instances with nextPageToken in %s (%s) ...", project.Name, project.ProjectId)
-					aggregated_list_call.PageToken(res.NextPageToken)
+					aggregatedListCall.PageToken(res.NextPageToken)
 				} else {
 					break
 				}
@@ -270,39 +270,39 @@ func doCache(c *cli.Context) {
 			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
 		}(project, notify)
 	}
-	for _, _ = range cache.Projects {
+	for _ = range c.Projects {
 		instances, _ := <-notify
 		if instances != nil {
-			cache.Instances = append(cache.Instances, instances...)
+			c.Instances = append(c.Instances, instances...)
 		}
 	}
 
 	// sort projects, instances
-	sort.Sort(projectsById(cache.Projects))
-	sort.Sort(instancesBySelfLink(cache.Instances))
+	sort.Sort(projectsByID(c.Projects))
+	sort.Sort(instancesBySelfLink(c.Instances))
 
-	SaveCache(cache)
+	saveCache(c)
 	log.Println("saved cache.")
 }
 
-func doProject(c *cli.Context) {
-	cache, err := LoadCache()
+func doProject(cliCtx *cli.Context) {
+	cache, err := loadCache()
 	if err != nil {
 		panic(err)
 	}
 
 	buf := renderProjectTable(cache.Projects)
-	out := PecoCommand(buf)
+	out := pecoCommand(buf)
 	projectLine := strings.Fields(out)
 	if len(projectLine) == 0 {
 		os.Exit(1)
 	}
 
-	project_id := projectLine[1]
+	projectID := projectLine[1]
 
-	cmd := []string{"gcloud", "config", "set", "project", project_id}
+	cmd := []string{"gcloud", "config", "set", "project", projectID}
 
-	if c.Bool("zsh-widget") {
+	if cliCtx.Bool("zsh-widget") {
 		fmt.Println(strings.Join(cmd, " "))
 	} else {
 		log.Println(strings.Join(cmd, " "))
@@ -310,17 +310,17 @@ func doProject(c *cli.Context) {
 	}
 }
 
-func doSsh(c *cli.Context) {
-	cache, err := LoadCache()
+func doSSH(cliCtx *cli.Context) {
+	cache, err := loadCache()
 	if err != nil {
 		panic(err)
 	}
 
-	config := LoadConfig()
+	config := loadConfig()
 	project := config.Core.Project
 
 	buf := renderInstanceTable(project, cache.Instances)
-	out := PecoCommand(buf)
+	out := pecoCommand(buf)
 	instanceLine := strings.Fields(out)
 
 	if len(instanceLine) == 0 {
@@ -339,7 +339,7 @@ func doSsh(c *cli.Context) {
 
 	cmd := []string{"gcloud", "compute", "ssh", "--project=" + project, "--zone=" + zone, instance}
 
-	if c.Bool("zsh-widget") {
+	if cliCtx.Bool("zsh-widget") {
 		fmt.Println(strings.Join(cmd, " "))
 	} else {
 		log.Println(strings.Join(cmd, " "))
@@ -354,13 +354,13 @@ func doSsh(c *cli.Context) {
 	}
 }
 
-func doCurrentProject(c *cli.Context) {
-	config := LoadConfig()
+func doCurrentProject(cliCtx *cli.Context) {
+	config := loadConfig()
 	project := config.Core.Project
 	fmt.Println("project: " + project)
 }
 
-func LoadConfig() configRoot {
+func loadConfig() configRoot {
 	out, _ := exec.Command("gcloud", "config", "list", "--format=json").Output()
 	buf := string(out)
 	decoder := json.NewDecoder(strings.NewReader(buf))
@@ -382,10 +382,10 @@ func renderProjectTable(projects []*cloudresourcemanager.Project) []byte {
 	return buf.Bytes()
 }
 
-func renderInstanceTable(project_id string, instances []*compute.Instance) []byte {
+func renderInstanceTable(projectID string, instances []*compute.Instance) []byte {
 	var buf bytes.Buffer
 	table := tablewriter.NewWriter(&buf)
-	if project_id == "" {
+	if projectID == "" {
 		table.SetHeader([]string{"PROJECT", "NAME", "ZONE", "MACHINE_TYPE", "INTERNAL_IP", "EXTERNAL_IP", "STATUS"})
 	} else {
 		table.SetHeader([]string{"NAME", "ZONE", "MACHINE_TYPE", "INTERNAL_IP", "EXTERNAL_IP", "STATUS"})
@@ -395,16 +395,16 @@ func renderInstanceTable(project_id string, instances []*compute.Instance) []byt
 			return strings.Split(strings.Split(selflink, "https://www.googleapis.com/compute/v1/projects/")[1], "/")[0]
 		})(ins.SelfLink)
 		zone := (func(a []string) string { return a[len(a)-1] })(strings.Split(ins.Zone, "/"))
-		machine_type := (func(a []string) string { return a[len(a)-1] })(strings.Split(ins.MachineType, "/"))
-		internal_ip := ins.NetworkInterfaces[0].NetworkIP
-		external_ip := ins.NetworkInterfaces[0].AccessConfigs[0].NatIP
+		machineType := (func(a []string) string { return a[len(a)-1] })(strings.Split(ins.MachineType, "/"))
+		internalIP := ins.NetworkInterfaces[0].NetworkIP
+		externalIP := ins.NetworkInterfaces[0].AccessConfigs[0].NatIP
 		var row []string
-		if project_id == "" {
-			row = []string{p, ins.Name, zone, machine_type, internal_ip, external_ip, ins.Status}
+		if projectID == "" {
+			row = []string{p, ins.Name, zone, machineType, internalIP, externalIP, ins.Status}
 			table.Append(row)
 		} else {
-			if project_id == p {
-				row = []string{ins.Name, zone, machine_type, internal_ip, external_ip, ins.Status}
+			if projectID == p {
+				row = []string{ins.Name, zone, machineType, internalIP, externalIP, ins.Status}
 				table.Append(row)
 			}
 		}
@@ -414,7 +414,7 @@ func renderInstanceTable(project_id string, instances []*compute.Instance) []byt
 	return buf.Bytes()
 }
 
-func PecoCommand(into []byte) string {
+func pecoCommand(into []byte) string {
 	var buff bytes.Buffer
 	pecoCom := exec.Command("peco")
 	pecoCom.Stdin = bytes.NewReader(into) // , _ = c.StdoutPipe()
