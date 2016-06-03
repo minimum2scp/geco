@@ -1,12 +1,14 @@
 language: go
 sudo: false
 go:
-  - 1.5.3
+  - 1.6.2
   - tip
 install:
+  - go get github.com/golang/lint/golint
   - go get github.com/mattn/gom
   - gom install
 script:
+  - golint .
   - gom build
   - ./geco
 matrix:
@@ -29,4 +31,4 @@ deploy:
     repo: minimum2scp/geco
     tags: true
     branch: master
-    condition: "${TRAVIS_GO_VERSION} = 1.5.3"
+    condition: "${TRAVIS_GO_VERSION} = 1.6.2"
