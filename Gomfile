@@ -1,8 +1,0 @@
-gom "github.com/codegangsta/cli"
-gom "github.com/olekukonko/tablewriter"
-gom 'golang.org/x/net/context'
-gom 'golang.org/x/oauth2'
-gom 'golang.org/x/oauth2/google'
-gom 'google.golang.org/api/compute/v1'
-gom 'google.golang.org/api/cloudresourcemanager/v1beta1'
-gom 'github.com/mitchellh/go-homedir'
