@@ -25,11 +25,11 @@ You can download binary from [Github releases](https://github.com/minimum2scp/ge
 ### Clone the project (for developers)
 
 ```bash
-$ go get github.com/mattn/gom
+$ curl https://glide.sh/get | sh                      # See http://glide.sh/ for details
 $ git clone https://github.com/minimum2scp/geco/
 $ cd geco
-$ gom install
-$ gom build
+$ glide install
+$ go build
 ```
 
 ## Contribution
