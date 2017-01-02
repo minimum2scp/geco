@@ -84,9 +84,10 @@ type configRoot struct {
 
 // cache
 type cache struct {
-	CacheDir  string
-	Instances []*compute.Instance
-	Projects  []*cloudresourcemanager.Project
+	CacheDir       string
+	Instances      []*compute.Instance
+	InstanceGroups []*compute.InstanceGroup
+	Projects       []*cloudresourcemanager.Project
 }
 
 func loadCache() (*cache, error) {
@@ -124,6 +125,16 @@ func loadCache() (*cache, error) {
 				return nil, err
 			}
 		}
+		if fileinfo.Name() == "instance-groups.json" {
+			instanceGroupsJSON, err := ioutil.ReadFile(filepath.Join(c.CacheDir, fileinfo.Name()))
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(instanceGroupsJSON, &c.InstanceGroups)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &c, nil
@@ -137,6 +148,11 @@ func saveCache(c *cache) error {
 	}
 	instancesJSON, _ := json.Marshal(c.Instances)
 	err = ioutil.WriteFile(filepath.Join(c.CacheDir, "instances.json"), instancesJSON, 0600)
+	if err != nil {
+		return err
+	}
+	instanceGroupsJSON, _ := json.Marshal(c.InstanceGroups)
+	err = ioutil.WriteFile(filepath.Join(c.CacheDir, "instance-groups.json"), instanceGroupsJSON, 0600)
 	if err != nil {
 		return err
 	}
@@ -201,9 +217,9 @@ func doCache(cliCtx *cli.Context) {
 	log.Printf("loaded projects, %d projects found.\n", len(c.Projects))
 
 	semaphore := make(chan int, maxParallelAPICalls)
-	notify := make(chan []*compute.Instance)
 
 	// gcloud compute instances list (in parallel)
+	instancesNotify := make(chan []*compute.Instance)
 	for _, project := range c.Projects {
 		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.Instance) {
 			semaphore <- 0
@@ -219,7 +235,6 @@ func doCache(cliCtx *cli.Context) {
 			}
 
 			aggregatedListCall := service.Instances.AggregatedList(project.ProjectId)
-			// aggregated_list_call.MaxResults(10)
 			for {
 				res, err := aggregatedListCall.Do()
 
@@ -246,21 +261,76 @@ func doCache(cliCtx *cli.Context) {
 			notify <- instances
 
 			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
-		}(project, notify)
+		}(project, instancesNotify)
 	}
 	for _ = range c.Projects {
-		instances, _ := <-notify
+		instances, _ := <-instancesNotify
 		if instances != nil {
 			c.Instances = append(c.Instances, instances...)
 		}
 	}
 
-	// sort projects, instances
+	// gcloud compute instance-groups list (in parallel)
+	instanceGroupNotify := make(chan []*compute.InstanceGroup)
+	for _, project := range c.Projects {
+		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.InstanceGroup) {
+			semaphore <- 0
+			var instanceGroups []*compute.InstanceGroup
+
+			log.Printf("loading instance groups in %s (%s)...\n", project.Name, project.ProjectId)
+			service, err := compute.New(client)
+			if err != nil {
+				log.Printf("error on loading instance groups in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+				notify <- nil
+				<-semaphore
+				return
+			}
+
+			aggregatedListCall := service.InstanceGroups.AggregatedList(project.ProjectId)
+			for {
+				res, err := aggregatedListCall.Do()
+
+				if err != nil {
+					log.Printf("error on loading instance groups in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+					notify <- nil
+					<-semaphore
+					return
+				}
+
+				for _, instanceGroupsScopedList := range res.Items {
+					instanceGroups = append(instanceGroups, instanceGroupsScopedList.InstanceGroups...)
+				}
+
+				if res.NextPageToken != "" {
+					log.Printf("loading more instance groups with nextPageToken in %s (%s) ...", project.Name, project.ProjectId)
+					aggregatedListCall.PageToken(res.NextPageToken)
+				} else {
+					break
+				}
+			}
+
+			<-semaphore
+			notify <- instanceGroups
+
+			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instanceGroups))
+		}(project, instanceGroupNotify)
+	}
+	for _ = range c.Projects {
+		instanceGroups, _ := <-instanceGroupNotify
+		if instanceGroups != nil {
+			c.InstanceGroups = append(c.InstanceGroups, instanceGroups...)
+		}
+	}
+
+	// sort projects, instances, instance-groups
 	sort.Slice(c.Projects, func(i, j int) bool {
 		return c.Projects[i].ProjectId < c.Projects[j].ProjectId
 	})
 	sort.Slice(c.Instances, func(i, j int) bool {
 		return c.Instances[i].SelfLink < c.Instances[j].SelfLink
+	})
+	sort.Slice(c.InstanceGroups, func(i, j int) bool {
+		return c.InstanceGroups[i].SelfLink < c.InstanceGroups[j].SelfLink
 	})
 
 	saveCache(c)
