@@ -86,8 +86,14 @@ type configRoot struct {
 type cache struct {
 	CacheDir       string
 	Instances      []*compute.Instance
-	InstanceGroups []*compute.InstanceGroup
+	InstanceGroups []*instanceGroupExt
 	Projects       []*cloudresourcemanager.Project
+}
+
+type instanceGroupExt struct {
+	InstanceGroup *compute.InstanceGroup
+	Project       *cloudresourcemanager.Project
+	Members       []*compute.InstanceWithNamedPorts
 }
 
 func loadCache() (*cache, error) {
@@ -182,6 +188,7 @@ func doCache(cliCtx *cli.Context) {
 	}
 	c.Projects = []*cloudresourcemanager.Project{}
 	c.Instances = []*compute.Instance{}
+	c.InstanceGroups = []*instanceGroupExt{}
 
 	ctx := oauth2.NoContext
 	scopes := []string{compute.ComputeReadonlyScope}
@@ -271,11 +278,11 @@ func doCache(cliCtx *cli.Context) {
 	}
 
 	// gcloud compute instance-groups list (in parallel)
-	instanceGroupNotify := make(chan []*compute.InstanceGroup)
+	instanceGroupNotify := make(chan []*instanceGroupExt)
 	for _, project := range c.Projects {
-		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.InstanceGroup) {
+		go func(project *cloudresourcemanager.Project, notify chan<- []*instanceGroupExt) {
 			semaphore <- 0
-			var instanceGroups []*compute.InstanceGroup
+			var ret []*instanceGroupExt
 
 			log.Printf("loading instance groups in %s (%s)...\n", project.Name, project.ProjectId)
 			service, err := compute.New(client)
@@ -298,7 +305,12 @@ func doCache(cliCtx *cli.Context) {
 				}
 
 				for _, instanceGroupsScopedList := range res.Items {
-					instanceGroups = append(instanceGroups, instanceGroupsScopedList.InstanceGroups...)
+					for _, instanceGroup := range instanceGroupsScopedList.InstanceGroups {
+						ret = append(ret, &instanceGroupExt{
+							InstanceGroup: instanceGroup,
+							Project:       project,
+						})
+					}
 				}
 
 				if res.NextPageToken != "" {
@@ -310,9 +322,9 @@ func doCache(cliCtx *cli.Context) {
 			}
 
 			<-semaphore
-			notify <- instanceGroups
+			notify <- ret
 
-			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instanceGroups))
+			log.Printf("loaded instance groups in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(ret))
 		}(project, instanceGroupNotify)
 	}
 	for _ = range c.Projects {
@@ -322,15 +334,52 @@ func doCache(cliCtx *cli.Context) {
 		}
 	}
 
-	// sort projects, instances, instance-groups
+	// gcloud compute instance-groups list-instances
+	// TODO: error check / handling, log message, parallel api call
+	for _, instanceGroupExt := range c.InstanceGroups {
+		instanceGroup := instanceGroupExt.InstanceGroup
+		project := instanceGroupExt.Project
+
+		service, err := compute.New(client)
+
+		if err != nil {
+			log.Printf("Error: %s", err.Error())
+			return
+		}
+
+		zone := (func(a []string) string { return a[len(a)-1] })(strings.Split(instanceGroup.Zone, "/"))
+
+		log.Printf("Loading instanceGroups.ListInstances with project=%s, zone=%s, name=%s\n",
+			project.ProjectId, zone, instanceGroup.Name)
+		listInstancesCall := service.InstanceGroups.ListInstances(project.ProjectId, zone, instanceGroup.Name, nil)
+
+		for {
+			res, err := listInstancesCall.Do()
+
+			if err != nil {
+				log.Printf("Error: %s", err.Error())
+				break
+			}
+
+			for _, v := range res.Items {
+				instanceGroupExt.Members = append(instanceGroupExt.Members, v)
+			}
+
+			if res.NextPageToken != "" {
+				log.Printf("Loading more instances with nextPageToken")
+				listInstancesCall.PageToken(res.NextPageToken)
+			} else {
+				break
+			}
+		}
+	}
+
+	// sort projects, instances
 	sort.Slice(c.Projects, func(i, j int) bool {
 		return c.Projects[i].ProjectId < c.Projects[j].ProjectId
 	})
 	sort.Slice(c.Instances, func(i, j int) bool {
 		return c.Instances[i].SelfLink < c.Instances[j].SelfLink
-	})
-	sort.Slice(c.InstanceGroups, func(i, j int) bool {
-		return c.InstanceGroups[i].SelfLink < c.InstanceGroups[j].SelfLink
 	})
 
 	saveCache(c)
