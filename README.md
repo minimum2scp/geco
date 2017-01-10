@@ -16,7 +16,7 @@ geco = gcloud + peco: select GCP resource using peco, and run gcloud
 
 ## Installation
 
-### Binary install
+### Binary install (RECOMMENDED)
 
 You can download binary from [Github releases](https://github.com/minimum2scp/geco/releases).
 
