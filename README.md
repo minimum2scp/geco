@@ -11,16 +11,18 @@ geco = gcloud + peco: select GCP resource using peco, and run gcloud
 ## Dependencies
 
  * [gcloud (Google Cloud SDK)](https://cloud.google.com/sdk/)
+   * `geco` uses [application default credential](https://developers.google.com/identity/protocols/application-default-credentials), so please run `gcloud auth application-default login` before use `geco`.
  * [peco](https://github.com/peco/peco)
 
 ## Installation
 
-### Binary install
+### Binary install (RECOMMENDED)
 
 You can download binary from [Github releases](https://github.com/minimum2scp/geco/releases).
 
 1. Download the zip file and unpack it.
 2. Put binary file into somewhere you want.
+3. Set the binary file to executable.
 
 ### Clone the project (for developers)
 

@@ -182,6 +182,10 @@ func assert(err error) {
 }
 
 func doCache(cliCtx *cli.Context) {
+	if err := checkCommandsInstalled(); err != nil {
+		log.Fatal(err)
+	}
+
 	c, err := loadCache()
 	if err != nil {
 		panic(err)
@@ -286,6 +290,10 @@ func doCache(cliCtx *cli.Context) {
 }
 
 func doProject(cliCtx *cli.Context) {
+	if err := checkCommandsInstalled(); err != nil {
+		log.Fatal(err)
+	}
+
 	cache, err := loadCache()
 	if err != nil {
 		panic(err)
@@ -311,6 +319,9 @@ func doProject(cliCtx *cli.Context) {
 }
 
 func doSSH(cliCtx *cli.Context) {
+	if err := checkCommandsInstalled(); err != nil {
+		log.Fatal(err)
+	}
 	cache, err := loadCache()
 	if err != nil {
 		panic(err)
@@ -355,6 +366,10 @@ func doSSH(cliCtx *cli.Context) {
 }
 
 func doCurrentProject(cliCtx *cli.Context) {
+	if err := checkCommandsInstalled(); err != nil {
+		log.Fatal(err)
+	}
+
 	config := loadConfig()
 	project := config.Core.Project
 	fmt.Println("project: " + project)
@@ -425,4 +440,25 @@ func pecoCommand(into []byte) string {
 
 	out := buff.String()
 	return out
+}
+
+func checkCommandsInstalled() error {
+	notFoundCommands := []string{}
+	requiredCommands := []string{
+		"gcloud",
+		"peco",
+	}
+
+	for _, cmd := range requiredCommands {
+		_, err := exec.LookPath(cmd)
+		if err != nil {
+			notFoundCommands = append(notFoundCommands, cmd)
+		}
+	}
+
+	if len(notFoundCommands) > 0 {
+		return fmt.Errorf("Command(s) not found: %s", strings.Join(notFoundCommands, ", "))
+	}
+
+	return nil
 }
