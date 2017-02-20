@@ -7,7 +7,7 @@ addons:
     packages:
       - glide
 go:
-  - 1.6.4
+  - 1.8
   - tip
 install:
   - go get github.com/golang/lint/golint
@@ -36,4 +36,4 @@ deploy:
     repo: minimum2scp/geco
     tags: true
     branch: master
-    condition: "${TRAVIS_GO_VERSION} = 1.6.4"
+    condition: "${TRAVIS_GO_VERSION} = 1.8"

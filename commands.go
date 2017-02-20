@@ -82,32 +82,6 @@ type configRoot struct {
 	Core configCore `json:"core"`
 }
 
-// sort Projects by projectId
-type projectsByID []*cloudresourcemanager.Project
-
-func (by projectsByID) Len() int {
-	return len(by)
-}
-func (by projectsByID) Less(i, j int) bool {
-	return by[i].ProjectId < by[j].ProjectId
-}
-func (by projectsByID) Swap(i, j int) {
-	by[i], by[j] = by[j], by[i]
-}
-
-// sort Instances by selfLink
-type instancesBySelfLink []*compute.Instance
-
-func (by instancesBySelfLink) Len() int {
-	return len(by)
-}
-func (by instancesBySelfLink) Less(i, j int) bool {
-	return by[i].SelfLink < by[j].SelfLink
-}
-func (by instancesBySelfLink) Swap(i, j int) {
-	by[i], by[j] = by[j], by[i]
-}
-
 // cache
 type cache struct {
 	CacheDir  string
@@ -282,8 +256,12 @@ func doCache(cliCtx *cli.Context) {
 	}
 
 	// sort projects, instances
-	sort.Sort(projectsByID(c.Projects))
-	sort.Sort(instancesBySelfLink(c.Instances))
+	sort.Slice(c.Projects, func(i, j int) bool {
+		return c.Projects[i].ProjectId < c.Projects[j].ProjectId
+	})
+	sort.Slice(c.Instances, func(i, j int) bool {
+		return c.Instances[i].SelfLink < c.Instances[j].SelfLink
+	})
 
 	saveCache(c)
 	log.Println("saved cache.")
