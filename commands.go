@@ -84,9 +84,16 @@ type configRoot struct {
 
 // cache
 type cache struct {
-	CacheDir  string
-	Instances []*compute.Instance
-	Projects  []*cloudresourcemanager.Project
+	CacheDir       string
+	Instances      []*compute.Instance
+	InstanceGroups []*instanceGroupExt
+	Projects       []*cloudresourcemanager.Project
+}
+
+type instanceGroupExt struct {
+	InstanceGroup *compute.InstanceGroup
+	Project       *cloudresourcemanager.Project
+	Members       []*compute.InstanceWithNamedPorts
 }
 
 func loadCache() (*cache, error) {
@@ -124,6 +131,16 @@ func loadCache() (*cache, error) {
 				return nil, err
 			}
 		}
+		if fileinfo.Name() == "instance-groups.json" {
+			instanceGroupsJSON, err := ioutil.ReadFile(filepath.Join(c.CacheDir, fileinfo.Name()))
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(instanceGroupsJSON, &c.InstanceGroups)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &c, nil
@@ -137,6 +154,11 @@ func saveCache(c *cache) error {
 	}
 	instancesJSON, _ := json.Marshal(c.Instances)
 	err = ioutil.WriteFile(filepath.Join(c.CacheDir, "instances.json"), instancesJSON, 0600)
+	if err != nil {
+		return err
+	}
+	instanceGroupsJSON, _ := json.Marshal(c.InstanceGroups)
+	err = ioutil.WriteFile(filepath.Join(c.CacheDir, "instance-groups.json"), instanceGroupsJSON, 0600)
 	if err != nil {
 		return err
 	}
@@ -166,6 +188,7 @@ func doCache(cliCtx *cli.Context) {
 	}
 	c.Projects = []*cloudresourcemanager.Project{}
 	c.Instances = []*compute.Instance{}
+	c.InstanceGroups = []*instanceGroupExt{}
 
 	ctx := oauth2.NoContext
 	scopes := []string{compute.ComputeReadonlyScope}
@@ -201,9 +224,9 @@ func doCache(cliCtx *cli.Context) {
 	log.Printf("loaded projects, %d projects found.\n", len(c.Projects))
 
 	semaphore := make(chan int, maxParallelAPICalls)
-	notify := make(chan []*compute.Instance)
 
 	// gcloud compute instances list (in parallel)
+	instancesNotify := make(chan []*compute.Instance)
 	for _, project := range c.Projects {
 		go func(project *cloudresourcemanager.Project, notify chan<- []*compute.Instance) {
 			semaphore <- 0
@@ -219,7 +242,6 @@ func doCache(cliCtx *cli.Context) {
 			}
 
 			aggregatedListCall := service.Instances.AggregatedList(project.ProjectId)
-			// aggregated_list_call.MaxResults(10)
 			for {
 				res, err := aggregatedListCall.Do()
 
@@ -246,12 +268,109 @@ func doCache(cliCtx *cli.Context) {
 			notify <- instances
 
 			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
-		}(project, notify)
+		}(project, instancesNotify)
 	}
 	for _ = range c.Projects {
-		instances, _ := <-notify
+		instances, _ := <-instancesNotify
 		if instances != nil {
 			c.Instances = append(c.Instances, instances...)
+		}
+	}
+
+	// gcloud compute instance-groups list (in parallel)
+	instanceGroupNotify := make(chan []*instanceGroupExt)
+	for _, project := range c.Projects {
+		go func(project *cloudresourcemanager.Project, notify chan<- []*instanceGroupExt) {
+			semaphore <- 0
+			var ret []*instanceGroupExt
+
+			log.Printf("loading instance groups in %s (%s)...\n", project.Name, project.ProjectId)
+			service, err := compute.New(client)
+			if err != nil {
+				log.Printf("error on loading instance groups in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+				notify <- nil
+				<-semaphore
+				return
+			}
+
+			aggregatedListCall := service.InstanceGroups.AggregatedList(project.ProjectId)
+			for {
+				res, err := aggregatedListCall.Do()
+
+				if err != nil {
+					log.Printf("error on loading instance groups in %s (%s), ignored: %s\n", project.Name, project.ProjectId, err)
+					notify <- nil
+					<-semaphore
+					return
+				}
+
+				for _, instanceGroupsScopedList := range res.Items {
+					for _, instanceGroup := range instanceGroupsScopedList.InstanceGroups {
+						ret = append(ret, &instanceGroupExt{
+							InstanceGroup: instanceGroup,
+							Project:       project,
+						})
+					}
+				}
+
+				if res.NextPageToken != "" {
+					log.Printf("loading more instance groups with nextPageToken in %s (%s) ...", project.Name, project.ProjectId)
+					aggregatedListCall.PageToken(res.NextPageToken)
+				} else {
+					break
+				}
+			}
+
+			<-semaphore
+			notify <- ret
+
+			log.Printf("loaded instance groups in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(ret))
+		}(project, instanceGroupNotify)
+	}
+	for _ = range c.Projects {
+		instanceGroups, _ := <-instanceGroupNotify
+		if instanceGroups != nil {
+			c.InstanceGroups = append(c.InstanceGroups, instanceGroups...)
+		}
+	}
+
+	// gcloud compute instance-groups list-instances
+	// TODO: error check / handling, log message, parallel api call
+	for _, instanceGroupExt := range c.InstanceGroups {
+		instanceGroup := instanceGroupExt.InstanceGroup
+		project := instanceGroupExt.Project
+
+		service, err := compute.New(client)
+
+		if err != nil {
+			log.Printf("Error: %s", err.Error())
+			return
+		}
+
+		zone := (func(a []string) string { return a[len(a)-1] })(strings.Split(instanceGroup.Zone, "/"))
+
+		log.Printf("Loading instanceGroups.ListInstances with project=%s, zone=%s, name=%s\n",
+			project.ProjectId, zone, instanceGroup.Name)
+		listInstancesCall := service.InstanceGroups.ListInstances(project.ProjectId, zone, instanceGroup.Name, nil)
+
+		for {
+			res, err := listInstancesCall.Do()
+
+			if err != nil {
+				log.Printf("Error: %s", err.Error())
+				break
+			}
+
+			for _, v := range res.Items {
+				instanceGroupExt.Members = append(instanceGroupExt.Members, v)
+			}
+
+			if res.NextPageToken != "" {
+				log.Printf("Loading more instances with nextPageToken")
+				listInstancesCall.PageToken(res.NextPageToken)
+			} else {
+				break
+			}
 		}
 	}
 
