@@ -31,4 +31,4 @@ deploy:
     repo: minimum2scp/geco
     tags: true
     branch: master
-    condition: "${TRAVIS_GO_VERSION} = 1.8"
+    condition: "${TRAVIS_GO_VERSION} = 1.9"
