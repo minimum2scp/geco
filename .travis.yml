@@ -1,17 +1,12 @@
 language: go
 sudo: false
-addons:
-  apt:
-    sources:
-      - sourceline: 'ppa:masterminds/glide'
-    packages:
-      - glide
 go:
   - 1.8
   - tip
 install:
   - go get github.com/golang/lint/golint
-  - glide install
+  - go get github.com/golang/dep/cmd/dep
+  - dep ensure
 script:
   - golint .
   - go build
