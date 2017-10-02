@@ -26,11 +26,12 @@ You can download binary from [Github releases](https://github.com/minimum2scp/ge
 
 ### Clone the project (for developers)
 
+Install [dep](https://github.com/golang/dep#setup), and then
+
 ```bash
-$ curl https://glide.sh/get | sh                      # See http://glide.sh/ for details
 $ git clone https://github.com/minimum2scp/geco/
 $ cd geco
-$ glide install
+$ dep ensure
 $ go build
 ```
 
