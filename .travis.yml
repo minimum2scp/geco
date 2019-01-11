@@ -22,7 +22,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key:
-    secure: Ngbq0738SoLtQDxD0Oo8FselloWqlAN3X1vMciPC2/JL3QqcXAkCnMlG/pu7RaQrENILzt5AfeqdP28hng3V4QJ+vu3NAIWjv2cXomo2uYopkz0xdA61vmQIoK15euWaG31XXxIfehoGYZ9bFGfqcsNni6REuBoKCRtoZs9j/gM=
+    secure: ZT3mJoBYUi7aabfTFNoZ12z0K54Ff0u7BofYIJrYyEGT4HV8b6qc4hu8AffZwqKT6q9Y0r8kt6CFfEHGrkDLs6p5DDMfv75BIgzvzmuR8aqIFGnvmGgZF2seJjN0P+jQv44nrPTxlVKruu/Gm7NrZK+CT7L6MC9y96Mk8dr02zs=
   file:
     - dist/geco_linux_amd64.zip
     - dist/geco_darwin_amd64.zip
