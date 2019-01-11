@@ -248,7 +248,7 @@ func doCache(cliCtx *cli.Context) {
 			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
 		}(project, notify)
 	}
-	for _ = range c.Projects {
+	for range c.Projects {
 		instances, _ := <-notify
 		if instances != nil {
 			c.Instances = append(c.Instances, instances...)
@@ -390,7 +390,10 @@ func renderInstanceTable(projectID string, instances []*compute.Instance) []byte
 		zone := (func(a []string) string { return a[len(a)-1] })(strings.Split(ins.Zone, "/"))
 		machineType := (func(a []string) string { return a[len(a)-1] })(strings.Split(ins.MachineType, "/"))
 		internalIP := ins.NetworkInterfaces[0].NetworkIP
-		externalIP := ins.NetworkInterfaces[0].AccessConfigs[0].NatIP
+		externalIP := ""
+		if accessConfigs := ins.NetworkInterfaces[0].AccessConfigs; len(accessConfigs) > 0 {
+			externalIP = accessConfigs[0].NatIP
+		}
 		var row []string
 		if projectID == "" {
 			row = []string{p, ins.Name, zone, machineType, internalIP, externalIP, ins.Status}

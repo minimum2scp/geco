@@ -1,8 +1,8 @@
+# https://docs.travis-ci.com/user/languages/go/
 language: go
 sudo: false
 go:
-  - 1.9
-  - tip
+  - 1.11.x
 install:
   - go get golang.org/x/lint/golint
   - go get github.com/golang/dep/cmd/dep
@@ -31,4 +31,4 @@ deploy:
     repo: minimum2scp/geco
     tags: true
     branch: master
-    condition: "${TRAVIS_GO_VERSION} = 1.9"
+    condition: "${TRAVIS_GO_VERSION} = 1.11.x"
