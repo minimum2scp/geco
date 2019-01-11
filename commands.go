@@ -248,7 +248,7 @@ func doCache(cliCtx *cli.Context) {
 			log.Printf("loaded instances in %s (%s), %d instances found.\n", project.Name, project.ProjectId, len(instances))
 		}(project, notify)
 	}
-	for _ = range c.Projects {
+	for range c.Projects {
 		instances, _ := <-notify
 		if instances != nil {
 			c.Instances = append(c.Instances, instances...)
