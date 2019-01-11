@@ -29,6 +29,6 @@ deploy:
   skip_cleanup: true
   on:
     repo: minimum2scp/geco
-    branch: fix/release-2.0.10
+    tags: true
+    branch: master
     condition: "${TRAVIS_GO_VERSION} = 1.11.x"
-  draft: true
